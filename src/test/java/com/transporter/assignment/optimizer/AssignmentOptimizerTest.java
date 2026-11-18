@@ -1,8 +1,9 @@
 package com.transporter.assignment.optimizer;
 
 import com.transporter.assignment.Samples;
+import com.transporter.assignment.TestComponents;
 import com.transporter.assignment.exception.InfeasibleAssignmentException;
-import com.transporter.assignment.exception.SearchLimitExceededException;
+import com.transporter.assignment.exception.PlanNotFoundException;
 import com.transporter.assignment.model.AssignmentPlan;
 import com.transporter.assignment.model.Lane;
 import com.transporter.assignment.model.LaneAssignment;
@@ -22,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AssignmentOptimizerTest {
 
-    private final AssignmentOptimizer optimizer = new AssignmentOptimizer(20_000_000);
+    private final AssignmentOptimizer optimizer = TestComponents.optimizer();
 
     @ParameterizedTest(name = "at most {0} transporters costs {1} using [{2}]")
     @CsvSource({
@@ -38,6 +39,7 @@ class AssignmentOptimizerTest {
 
         assertThat(plan.totalCost()).isEqualTo(expectedCost);
         assertThat(plan.selectedTransporters()).containsExactlyElementsOf(ids(expectedTransporters));
+        assertThat(plan.optimal()).isTrue();
     }
 
     @Test
@@ -128,11 +130,23 @@ class AssignmentOptimizerTest {
     }
 
     @Test
-    void givesUpOnceTheSearchStepLimitIsReached() {
-        AssignmentOptimizer tinyBudget = new AssignmentOptimizer(10);
+    void fallsBackToTheGreedyStrategyWhenTheExactSearchRunsOutOfSteps() {
+        AssignmentOptimizer tinyBudget = TestComponents.optimizer(10);
 
-        assertThatThrownBy(() -> tinyBudget.optimize(Samples.input(Samples.TEST_CASE_1), 3))
-                .isInstanceOf(SearchLimitExceededException.class);
+        AssignmentPlan plan = tinyBudget.optimize(Samples.input(Samples.TEST_CASE_1), 3);
+
+        assertThat(plan.optimal()).isFalse();
+        assertThat(plan.assignments()).hasSize(5);
+        assertThat(plan.selectedTransporters()).hasSizeLessThanOrEqualTo(3);
+    }
+
+    @Test
+    void reportsThatNoPlanWasFoundWhenTheFallbackCannotCoverEveryLane() {
+        AssignmentOptimizer tinyBudget = TestComponents.optimizer(10);
+
+        assertThatThrownBy(() -> tinyBudget.optimize(Samples.input(Samples.SPEC_EXAMPLE), 3))
+                .isInstanceOf(PlanNotFoundException.class)
+                .hasMessageStartingWith("Could not find a plan covering all 10 lanes with at most 3 transporters.");
     }
 
     static TransporterInput input(int laneCount, Transporter... transporters) {

@@ -1,13 +1,13 @@
 package com.transporter.assignment.service;
 
 import com.transporter.assignment.Samples;
+import com.transporter.assignment.TestComponents;
 import com.transporter.assignment.exception.InputNotFoundException;
 import com.transporter.assignment.exception.InvalidInputException;
 import com.transporter.assignment.model.Lane;
 import com.transporter.assignment.model.Transporter;
 import com.transporter.assignment.model.TransporterInput;
-import com.transporter.assignment.optimizer.AssignmentOptimizer;
-import com.transporter.assignment.repository.TransporterInputRepository;
+import com.transporter.assignment.repository.InMemoryTransporterInputRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,10 +18,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TransporterServiceTest {
 
     private final TransporterService service = new TransporterService(
-            new TransporterInputRepository(),
-            new TransporterInputValidator(),
+            new InMemoryTransporterInputRepository(),
+            TestComponents.validator(),
             new QuoteSheetParser(),
-            new AssignmentOptimizer(20_000_000));
+            TestComponents.optimizer());
 
     @Test
     void asksForInputBeforeAnythingHasBeenSubmitted() {

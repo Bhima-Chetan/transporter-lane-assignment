@@ -1,91 +1,60 @@
 package com.transporter.assignment.optimizer;
 
 import com.transporter.assignment.exception.InfeasibleAssignmentException;
+import com.transporter.assignment.exception.PlanNotFoundException;
+import com.transporter.assignment.exception.SearchLimitExceededException;
 import com.transporter.assignment.model.AssignmentPlan;
-import com.transporter.assignment.model.Lane;
-import com.transporter.assignment.model.LaneAssignment;
-import com.transporter.assignment.model.LaneQuote;
-import com.transporter.assignment.model.Transporter;
 import com.transporter.assignment.model.TransporterInput;
-import com.transporter.assignment.optimizer.BranchAndBoundSearch.Solution;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.stream.IntStream;
-
-import static com.transporter.assignment.optimizer.BranchAndBoundSearch.NO_QUOTE;
 
 @Component
 public class AssignmentOptimizer {
 
-    private final long searchStepLimit;
+    private static final Logger log = LoggerFactory.getLogger(AssignmentOptimizer.class);
 
-    public AssignmentOptimizer(@Value("${assignment.search-step-limit}") long searchStepLimit) {
-        this.searchStepLimit = searchStepLimit;
+    private final AssignmentStrategy exact;
+    private final AssignmentStrategy fallback;
+
+    public AssignmentOptimizer(ExactAssignmentStrategy exact, GreedyAssignmentStrategy fallback) {
+        this.exact = exact;
+        this.fallback = fallback;
     }
 
     public AssignmentPlan optimize(TransporterInput input, int maxTransporters) {
-        List<Lane> lanes = input.lanes();
-        List<Transporter> candidates = input.transporters().stream()
-                .filter(transporter -> !transporter.laneQuotes().isEmpty())
-                .toList();
-        long[][] quotes = quoteMatrix(lanes, candidates);
-        int usableTransporters = Math.min(maxTransporters, candidates.size());
+        AssignmentProblem problem = AssignmentProblem.from(input);
+        int usableTransporters = Math.min(maxTransporters, problem.transporterCount());
+        try {
+            return solveExactly(problem, usableTransporters, maxTransporters);
+        } catch (SearchLimitExceededException tooLargeToSolveExactly) {
+            log.info("{} lanes and {} transporters are too many to solve exactly, using the greedy strategy",
+                    problem.laneCount(), problem.transporterCount());
+            return solveWithFallback(problem, usableTransporters, maxTransporters);
+        }
+    }
 
-        Solution best = cheapestCover(quotes, lanes.size(), usableTransporters)
+    private AssignmentPlan solveExactly(AssignmentProblem problem, int usableTransporters, int maxTransporters) {
+        return exact.solve(problem, usableTransporters)
+                .map(solution -> problem.toPlan(solution, exact.guaranteesOptimal()))
                 .orElseThrow(() -> new InfeasibleAssignmentException(
-                        lanes.size(),
+                        problem.laneCount(),
                         maxTransporters,
-                        fewestTransportersCoveringAllLanes(quotes, lanes.size(), usableTransporters + 1)));
-
-        return toPlan(best, lanes, candidates);
+                        fewestTransportersCoveringAllLanes(problem, usableTransporters + 1)));
     }
 
-    private Optional<Solution> cheapestCover(long[][] quotes, int laneCount, int maxTransporters) {
-        return new BranchAndBoundSearch(quotes, laneCount, maxTransporters, searchStepLimit).run();
+    private AssignmentPlan solveWithFallback(AssignmentProblem problem, int usableTransporters, int maxTransporters) {
+        return fallback.solve(problem, usableTransporters)
+                .map(solution -> problem.toPlan(solution, fallback.guaranteesOptimal()))
+                .orElseThrow(() -> new PlanNotFoundException(problem.laneCount(), maxTransporters));
     }
 
-    private int fewestTransportersCoveringAllLanes(long[][] quotes, int laneCount, int startingFrom) {
-        return IntStream.rangeClosed(startingFrom, quotes.length)
-                .filter(count -> cheapestCover(quotes, laneCount, count).isPresent())
+    private int fewestTransportersCoveringAllLanes(AssignmentProblem problem, int startingFrom) {
+        return IntStream.rangeClosed(startingFrom, problem.transporterCount())
+                .filter(count -> exact.solve(problem, count).isPresent())
                 .findFirst()
                 .orElseThrow();
-    }
-
-    private static long[][] quoteMatrix(List<Lane> lanes, List<Transporter> transporters) {
-        Map<Long, Integer> laneIndexById = new HashMap<>();
-        for (int lane = 0; lane < lanes.size(); lane++) {
-            laneIndexById.put(lanes.get(lane).id(), lane);
-        }
-
-        long[][] quotes = new long[transporters.size()][lanes.size()];
-        for (int transporter = 0; transporter < transporters.size(); transporter++) {
-            Arrays.fill(quotes[transporter], NO_QUOTE);
-            for (LaneQuote laneQuote : transporters.get(transporter).laneQuotes()) {
-                quotes[transporter][laneIndexById.get(laneQuote.laneId())] = laneQuote.quote();
-            }
-        }
-        return quotes;
-    }
-
-    private static AssignmentPlan toPlan(Solution solution, List<Lane> lanes, List<Transporter> candidates) {
-        List<LaneAssignment> assignments = IntStream.range(0, lanes.size())
-                .mapToObj(lane -> new LaneAssignment(
-                        lanes.get(lane).id(),
-                        candidates.get(solution.winnerByLane()[lane]).id()))
-                .toList();
-
-        List<Long> selectedTransporters = assignments.stream()
-                .map(LaneAssignment::transporterId)
-                .distinct()
-                .sorted()
-                .toList();
-
-        return new AssignmentPlan(solution.totalCost(), assignments, selectedTransporters);
     }
 }

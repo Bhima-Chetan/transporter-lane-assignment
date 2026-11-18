@@ -5,6 +5,7 @@ import com.transporter.assignment.model.AssignmentPlan;
 import com.transporter.assignment.model.TransporterInput;
 import com.transporter.assignment.optimizer.AssignmentOptimizer;
 import com.transporter.assignment.repository.TransporterInputRepository;
+import com.transporter.assignment.validation.TransporterInputValidator;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -68,13 +68,15 @@ public class TransporterController {
             description = "Covers every lane at the lowest total cost while using no more than maxTransporters. "
                     + "When two plans cost the same, the one that uses more transporters wins. "
                     + "selectedTransporters only lists transporters that actually won a lane, so it can be shorter than "
-                    + "maxTransporters when adding another transporter would not lower the cost.")
+                    + "maxTransporters when adding another transporter would not lower the cost. "
+                    + "The exact search is used first; if the input is too large for it, a greedy strategy answers "
+                    + "instead and optimal comes back false.")
     @ApiResponse(responseCode = "200", description = "Optimal assignment found")
     @ApiResponse(responseCode = "400", description = "maxTransporters missing or not a positive number",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "404", description = "No input has been submitted yet",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @ApiResponse(responseCode = "422", description = "Every lane cannot be covered with that many transporters; the message says how many are needed",
+    @ApiResponse(responseCode = "422", description = "Every lane cannot be covered with that many transporters; the message says how many are needed when that can be proven",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @PostMapping(path = "/assignment", consumes = MediaType.APPLICATION_JSON_VALUE)
     public AssignmentResponse findAssignment(@Valid @RequestBody AssignmentRequest request) {

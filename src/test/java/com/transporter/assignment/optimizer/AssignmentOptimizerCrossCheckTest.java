@@ -1,5 +1,6 @@
 package com.transporter.assignment.optimizer;
 
+import com.transporter.assignment.TestComponents;
 import com.transporter.assignment.exception.InfeasibleAssignmentException;
 import com.transporter.assignment.model.AssignmentPlan;
 import com.transporter.assignment.model.Lane;
@@ -23,7 +24,8 @@ class AssignmentOptimizerCrossCheckTest {
 
     private static final int ROUNDS = 500;
 
-    private final AssignmentOptimizer optimizer = new AssignmentOptimizer(20_000_000);
+    private final AssignmentOptimizer optimizer = TestComponents.optimizer();
+    private final GreedyAssignmentStrategy greedy = new GreedyAssignmentStrategy();
     private final Random random = new Random(20241101);
 
     @Test
@@ -45,6 +47,26 @@ class AssignmentOptimizerCrossCheckTest {
                         .isInstanceOfSatisfying(InfeasibleAssignmentException.class, ex ->
                                 assertThat(ex.getMinimumTransportersRequired()).isEqualTo(expected.fewestCoveringAllLanes()));
             }
+        }
+    }
+
+    @Test
+    void greedyNeverBeatsTheExactAnswerAndAlwaysReturnsAValidPlan() {
+        for (int round = 0; round < ROUNDS; round++) {
+            TransporterInput input = randomInput();
+            int maxTransporters = 1 + random.nextInt(input.transporters().size());
+            Expected expected = exhaustiveSearch(input, maxTransporters);
+            AssignmentProblem problem = AssignmentProblem.from(input);
+            int finalRound = round;
+
+            greedy.solve(problem, Math.min(maxTransporters, problem.transporterCount()))
+                    .map(solution -> problem.toPlan(solution, greedy.guaranteesOptimal()))
+                    .ifPresent(plan -> {
+                        assertThat(expected.feasible()).as("greedy found a plan in round %d", finalRound).isTrue();
+                        assertThat(plan.totalCost()).as("greedy cost in round %d", finalRound)
+                                .isGreaterThanOrEqualTo(expected.totalCost());
+                        assertIsConsistent(plan, input, maxTransporters);
+                    });
         }
     }
 

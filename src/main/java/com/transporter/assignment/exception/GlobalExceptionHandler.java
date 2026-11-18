@@ -33,7 +33,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(HttpStatus.NOT_FOUND, ErrorResponse.of(ex.getMessage()));
     }
 
-    @ExceptionHandler({InfeasibleAssignmentException.class, SearchLimitExceededException.class})
+    @ExceptionHandler({InfeasibleAssignmentException.class, PlanNotFoundException.class})
     public ResponseEntity<ErrorResponse> handleUnsolvable(RuntimeException ex) {
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorResponse.of(ex.getMessage()));
     }

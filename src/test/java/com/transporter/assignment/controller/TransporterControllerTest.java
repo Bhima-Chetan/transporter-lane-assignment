@@ -55,7 +55,8 @@ class TransporterControllerTest {
                             {"laneId": 4, "transporterId": 2},
                             {"laneId": 5, "transporterId": 3}
                           ],
-                          "selectedTransporters": [1, 2, 3]
+                          "selectedTransporters": [1, 2, 3],
+                          "optimal": true
                         }
                         """, JsonCompareMode.STRICT));
     }

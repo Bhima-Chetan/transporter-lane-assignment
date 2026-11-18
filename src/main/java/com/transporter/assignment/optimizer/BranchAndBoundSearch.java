@@ -7,12 +7,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static com.transporter.assignment.optimizer.AssignmentProblem.NO_QUOTE;
+import static com.transporter.assignment.optimizer.AssignmentProblem.cheaperOf;
+import static com.transporter.assignment.optimizer.AssignmentProblem.coversEveryLane;
+
 final class BranchAndBoundSearch {
 
-    static final long NO_QUOTE = Long.MAX_VALUE;
-
+    private final AssignmentProblem problem;
     private final long[][] quotes;
-    private final int laneCount;
     private final int maxTransporters;
     private final long stepLimit;
     private final long[][] cheapestQuoteFrom;
@@ -20,16 +22,16 @@ final class BranchAndBoundSearch {
     private Solution best;
     private long steps;
 
-    BranchAndBoundSearch(long[][] quotes, int laneCount, int maxTransporters, long stepLimit) {
-        this.quotes = quotes;
-        this.laneCount = laneCount;
+    BranchAndBoundSearch(AssignmentProblem problem, int maxTransporters, long stepLimit) {
+        this.problem = problem;
+        this.quotes = problem.quotes();
         this.maxTransporters = maxTransporters;
         this.stepLimit = stepLimit;
         this.cheapestQuoteFrom = cheapestQuotesFromEachPosition();
     }
 
     Optional<Solution> run() {
-        explore(0, noQuotes());
+        explore(0, problem.noQuotes());
         return Optional.ofNullable(best);
     }
 
@@ -54,7 +56,7 @@ final class BranchAndBoundSearch {
 
     private boolean cannotBeatBest(int next, long[] cheapestChosenQuote) {
         long bestReachableCost = 0;
-        for (int lane = 0; lane < laneCount; lane++) {
+        for (int lane = 0; lane < problem.laneCount(); lane++) {
             long cheapestReachable = Math.min(cheapestChosenQuote[lane], cheapestQuoteFrom[next][lane]);
             if (cheapestReachable == NO_QUOTE) {
                 return true;
@@ -65,54 +67,25 @@ final class BranchAndBoundSearch {
     }
 
     private void consider(long[] cheapestChosenQuote) {
-        long totalCost = 0;
-        for (long quote : cheapestChosenQuote) {
-            if (quote == NO_QUOTE) {
-                return;
-            }
-            totalCost += quote;
+        if (!coversEveryLane(cheapestChosenQuote)) {
+            return;
         }
-        if (best != null && totalCost > best.totalCost()) {
+        if (best != null && Arrays.stream(cheapestChosenQuote).sum() > best.totalCost()) {
             return;
         }
 
-        int[] winnerByLane = LaneWinners.pickSpreadingTies(quotes, chosen, cheapestChosenQuote);
-        int transportersUsed = (int) Arrays.stream(winnerByLane).distinct().count();
-        if (isBetterThanBest(totalCost, transportersUsed)) {
-            best = new Solution(totalCost, winnerByLane, transportersUsed);
+        Solution candidate = Solution.of(quotes, chosen, cheapestChosenQuote);
+        if (candidate.isBetterThan(best)) {
+            best = candidate;
         }
-    }
-
-    private boolean isBetterThanBest(long totalCost, int transportersUsed) {
-        if (best == null || totalCost < best.totalCost()) {
-            return true;
-        }
-        return totalCost == best.totalCost() && transportersUsed > best.transportersUsed();
     }
 
     private long[][] cheapestQuotesFromEachPosition() {
         long[][] cheapest = new long[quotes.length + 1][];
-        cheapest[quotes.length] = noQuotes();
+        cheapest[quotes.length] = problem.noQuotes();
         for (int position = quotes.length - 1; position >= 0; position--) {
             cheapest[position] = cheaperOf(cheapest[position + 1], quotes[position]);
         }
         return cheapest;
-    }
-
-    private long[] noQuotes() {
-        long[] none = new long[laneCount];
-        Arrays.fill(none, NO_QUOTE);
-        return none;
-    }
-
-    private static long[] cheaperOf(long[] current, long[] offer) {
-        long[] cheaper = current.clone();
-        for (int lane = 0; lane < cheaper.length; lane++) {
-            cheaper[lane] = Math.min(cheaper[lane], offer[lane]);
-        }
-        return cheaper;
-    }
-
-    record Solution(long totalCost, int[] winnerByLane, int transportersUsed) {
     }
 }

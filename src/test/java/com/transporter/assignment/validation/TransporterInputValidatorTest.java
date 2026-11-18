@@ -1,6 +1,7 @@
-package com.transporter.assignment.service;
+package com.transporter.assignment.validation;
 
 import com.transporter.assignment.Samples;
+import com.transporter.assignment.TestComponents;
 import com.transporter.assignment.exception.InvalidInputException;
 import com.transporter.assignment.model.Lane;
 import com.transporter.assignment.model.LaneQuote;
@@ -16,7 +17,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 class TransporterInputValidatorTest {
 
-    private final TransporterInputValidator validator = new TransporterInputValidator();
+    private final TransporterInputValidator validator = TestComponents.validator();
 
     @Test
     void acceptsTheSampleInputs() {
