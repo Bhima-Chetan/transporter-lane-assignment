@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 @RestController
-@RequestMapping("/api/v1/transporters")
+@RequestMapping(path = "/api/v1/transporters", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Transporter assignment")
 public class TransporterController {
 
